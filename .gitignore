@@ -1,0 +1,6 @@
+**/.*
+!.github/
+!.gitignore
+!.golangci.yml
+!.goreleaser.yaml
+bin/
