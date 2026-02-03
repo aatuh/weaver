@@ -55,3 +55,43 @@ func TestCombinerMultipleRootsPrefixesDisplayPaths(t *testing.T) {
 		t.Fatalf("expected root-b prefixed file, got output:\n%s", output)
 	}
 }
+
+func TestCombinerCompactTreeIsSingleLine(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("A"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	combiner := Combiner{
+		FS:    fs.OSFS{},
+		Clock: func() time.Time { return time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC) },
+	}
+	allowAll := filter.GitIgnoreFilter{Mode: filter.ModeBlacklist}
+	opts := Options{
+		Roots:              []string{root},
+		RootLabels:         []string{"root"},
+		Filters:            []filter.PathFilter{allowAll},
+		IncludeTreeCompact: true,
+		Output:             &buf,
+	}
+
+	if err := combiner.Combine(context.Background(), opts); err != nil {
+		t.Fatalf("combine: %v", err)
+	}
+
+	output := buf.String()
+	start := strings.Index(output, "--- BEGIN FILE TREE (JSON, COMPACT) ---\n")
+	if start == -1 {
+		t.Fatalf("missing compact tree header, got output:\n%s", output)
+	}
+	segment := output[start:]
+	parts := strings.SplitN(segment, "\n", 3)
+	if len(parts) < 3 {
+		t.Fatalf("unexpected compact tree section, got output:\n%s", output)
+	}
+	payload := parts[1]
+	if strings.Contains(payload, "\n") {
+		t.Fatalf("expected compact tree to be single line, got:\n%s", payload)
+	}
+}

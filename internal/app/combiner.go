@@ -25,12 +25,13 @@ type FileSystem interface {
 
 // Options configure the combine operation.
 type Options struct {
-	Roots       []string
-	RootLabels  []string
-	Filters     []filter.PathFilter
-	IncludeTree bool
-	Output      io.Writer
-	ModeLabel   string
+	Roots              []string
+	RootLabels         []string
+	Filters            []filter.PathFilter
+	IncludeTree        bool
+	IncludeTreeCompact bool
+	Output             io.Writer
+	ModeLabel          string
 }
 
 // Combiner orchestrates collecting and writing combined files.
@@ -90,7 +91,7 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	if opts.IncludeTree {
+	if opts.IncludeTree || opts.IncludeTreeCompact {
 		rootName := "roots"
 		if len(opts.Roots) == 1 {
 			rootName = opts.RootLabels[0]
@@ -100,18 +101,37 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 			paths[i] = entry.display
 		}
 		treeNode := tree.Build(rootName, paths)
-		payload, err := json.MarshalIndent(treeNode, "", "  ")
-		if err != nil {
-			return fmt.Errorf("build tree: %w", err)
+
+		if opts.IncludeTree {
+			payload, err := json.MarshalIndent(treeNode, "", "  ")
+			if err != nil {
+				return fmt.Errorf("build tree: %w", err)
+			}
+			if err := writeString(writer, "--- BEGIN FILE TREE (JSON) ---\n"); err != nil {
+				return err
+			}
+			if _, err := writer.Write(payload); err != nil {
+				return err
+			}
+			if err := writeString(writer, "\n--- END FILE TREE ---\n\n"); err != nil {
+				return err
+			}
 		}
-		if err := writeString(writer, "--- BEGIN FILE TREE (JSON) ---\n"); err != nil {
-			return err
-		}
-		if _, err := writer.Write(payload); err != nil {
-			return err
-		}
-		if err := writeString(writer, "\n--- END FILE TREE ---\n\n"); err != nil {
-			return err
+
+		if opts.IncludeTreeCompact {
+			payload, err := json.Marshal(treeNode)
+			if err != nil {
+				return fmt.Errorf("build compact tree: %w", err)
+			}
+			if err := writeString(writer, "--- BEGIN FILE TREE (JSON, COMPACT) ---\n"); err != nil {
+				return err
+			}
+			if _, err := writer.Write(payload); err != nil {
+				return err
+			}
+			if err := writeString(writer, "\n--- END FILE TREE (JSON, COMPACT) ---\n\n"); err != nil {
+				return err
+			}
 		}
 	}
 

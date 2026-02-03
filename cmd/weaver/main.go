@@ -17,8 +17,9 @@ import (
 
 func main() {
 	var (
-		outFlag     = flag.String("out", "", "Output file path ('-' for stdout, defaults to stdout)")
-		includeTree = flag.Bool("include-tree", false, "Include JSON file tree of included files")
+		outFlag            = flag.String("out", "", "Output file path ('-' for stdout, defaults to stdout)")
+		includeTree        = flag.Bool("include-tree", false, "Include JSON file tree of included files")
+		includeTreeCompact = flag.Bool("include-tree-compact", false, "Include JSON file tree as a one-line payload")
 	)
 	var roots []string
 	flag.Var(rootsFlag{Roots: &roots}, "root", "Root directory to scan (repeatable, defaults to current directory)")
@@ -84,12 +85,13 @@ func main() {
 
 	combiner := app.Combiner{FS: fs.OSFS{}}
 	opts := app.Options{
-		Roots:       rootsAbs,
-		RootLabels:  rootLabels,
-		Filters:     filters,
-		IncludeTree: *includeTree,
-		Output:      outWriter,
-		ModeLabel:   formatRuleModes(ruleSpecs),
+		Roots:              rootsAbs,
+		RootLabels:         rootLabels,
+		Filters:            filters,
+		IncludeTree:        *includeTree,
+		IncludeTreeCompact: *includeTreeCompact,
+		Output:             outWriter,
+		ModeLabel:          formatRuleModes(ruleSpecs),
 	}
 
 	if err := combiner.Combine(context.Background(), opts); err != nil {
@@ -326,6 +328,7 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  weaver -root . -out combined.txt")
 	fmt.Fprintln(w, "  weaver -root . -include-tree -out -")
+	fmt.Fprintln(w, "  weaver -root . -include-tree-compact -out -")
 	fmt.Fprintln(w, "  weaver -root ./api -root ./web -out -")
 	fmt.Fprintln(w, "  weaver -blacklist .gitignore -out -")
 }

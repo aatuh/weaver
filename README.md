@@ -23,6 +23,7 @@ weaver --help
 weaver -root . -out combined.txt
 weaver -root . -out combined.txt -whitelist allowlist.txt
 weaver -root . -out - -include-tree
+weaver -root . -out - -include-tree-compact
 weaver -root ./api -root ./web -out -
 weaver -blacklist .gitignore -whitelist .allowed -out combined.txt
 ```
@@ -34,6 +35,7 @@ weaver -blacklist .gitignore -whitelist .allowed -out combined.txt
 - `-blacklist`: path to a gitignore-style file to blacklist (repeatable)
 - `-whitelist`: path to a gitignore-style file to whitelist (repeatable)
 - `-include-tree`: include JSON file tree in output
+- `-include-tree-compact`: include JSON file tree as a one-line payload
 
 ## Notes
 
@@ -41,6 +43,7 @@ weaver -blacklist .gitignore -whitelist .allowed -out combined.txt
 - If no rule files are provided, all files are included.
 - In whitelist rules, directory-only patterns (ending in `/`) include all files under that directory.
 - The output file is automatically excluded if it lives under a root directory.
+- Use `-include-tree` and `-include-tree-compact` together to include both tree formats.
 
 ## Build
 
