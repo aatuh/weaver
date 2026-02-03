@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatu/weaver/internal/adapters/fs"
-	"github.com/aatu/weaver/internal/filter"
+	"github.com/aatuh/weaver/internal/adapters/fs"
+	"github.com/aatuh/weaver/internal/filter"
 )
 
 func TestCombinerMultipleRootsPrefixesDisplayPaths(t *testing.T) {

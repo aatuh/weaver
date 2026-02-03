@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatu/weaver/internal/gitignore"
+	"github.com/aatuh/weaver/internal/gitignore"
 )
 
 func mustMatcherForRuleSet(t *testing.T, content string) *gitignore.Matcher {

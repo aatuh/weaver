@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatu/weaver/internal/filter"
-	"github.com/aatu/weaver/internal/tree"
+	"github.com/aatuh/weaver/internal/filter"
+	"github.com/aatuh/weaver/internal/tree"
 )
 
 // FileSystem provides file walking and reading.

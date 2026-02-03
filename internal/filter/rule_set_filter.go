@@ -1,6 +1,6 @@
 package filter
 
-import "github.com/aatu/weaver/internal/gitignore"
+import "github.com/aatuh/weaver/internal/gitignore"
 
 // RuleSet bundles a matcher with its evaluation mode.
 type RuleSet struct {

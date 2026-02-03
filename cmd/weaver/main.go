@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aatu/weaver/internal/adapters/fs"
-	"github.com/aatu/weaver/internal/app"
-	"github.com/aatu/weaver/internal/filter"
-	"github.com/aatu/weaver/internal/gitignore"
+	"github.com/aatuh/weaver/internal/adapters/fs"
+	"github.com/aatuh/weaver/internal/app"
+	"github.com/aatuh/weaver/internal/filter"
+	"github.com/aatuh/weaver/internal/gitignore"
 )
 
 func main() {

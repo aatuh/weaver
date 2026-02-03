@@ -1,6 +1,6 @@
 package filter
 
-import "github.com/aatu/weaver/internal/gitignore"
+import "github.com/aatuh/weaver/internal/gitignore"
 
 // GitIgnoreFilter evaluates paths using gitignore rules.
 type GitIgnoreFilter struct {
