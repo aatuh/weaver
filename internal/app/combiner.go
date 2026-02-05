@@ -30,6 +30,9 @@ type Options struct {
 	Filters            []filter.PathFilter
 	IncludeTree        bool
 	IncludeTreeCompact bool
+	MaxDepth           int
+	SkipContents       bool
+	SkipBinary         bool
 	Output             io.Writer
 	ModeLabel          string
 }
@@ -68,7 +71,7 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 	}
 	entries := make([]fileEntry, 0)
 	for i, root := range opts.Roots {
-		files, err := c.collectFiles(ctx, root, opts.Filters[i])
+		files, err := c.collectFiles(ctx, root, opts.Filters[i], opts.MaxDepth)
 		if err != nil {
 			return err
 		}
@@ -135,6 +138,10 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 		}
 	}
 
+	if opts.SkipContents {
+		return writer.Flush()
+	}
+
 	for _, entry := range entries {
 		if err := writeString(writer, fmt.Sprintf("--- BEGIN FILE: %s ---\n", entry.display)); err != nil {
 			return err
@@ -145,12 +152,18 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", entry.display, err)
 		}
-		if _, err := writer.Write(data); err != nil {
-			return err
-		}
-		if len(data) == 0 || data[len(data)-1] != '\n' {
-			if err := writeString(writer, "\n"); err != nil {
+		if opts.SkipBinary && isLikelyBinary(data) {
+			if err := writeString(writer, "[binary content omitted]\n"); err != nil {
 				return err
+			}
+		} else {
+			if _, err := writer.Write(data); err != nil {
+				return err
+			}
+			if len(data) == 0 || data[len(data)-1] != '\n' {
+				if err := writeString(writer, "\n"); err != nil {
+					return err
+				}
 			}
 		}
 		if err := writeString(writer, fmt.Sprintf("--- END FILE: %s ---\n\n", entry.display)); err != nil {
@@ -161,7 +174,7 @@ func (c Combiner) Combine(ctx context.Context, opts Options) error {
 	return writer.Flush()
 }
 
-func (c Combiner) collectFiles(ctx context.Context, root string, pathFilter filter.PathFilter) ([]string, error) {
+func (c Combiner) collectFiles(ctx context.Context, root string, pathFilter filter.PathFilter, maxDepth int) ([]string, error) {
 	files := make([]string, 0)
 
 	err := c.FS.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -183,6 +196,19 @@ func (c Combiner) collectFiles(ctx context.Context, root string, pathFilter filt
 		rel = filepath.ToSlash(rel)
 		if rel == "." || strings.HasPrefix(rel, "../") || rel == ".." {
 			return nil
+		}
+
+		depth := 0
+		if rel != "" {
+			depth = strings.Count(rel, "/")
+		}
+		if maxDepth >= 0 {
+			if entry.IsDir() && depth >= maxDepth {
+				return fs.SkipDir
+			}
+			if !entry.IsDir() && depth > maxDepth {
+				return nil
+			}
 		}
 
 		decision := pathFilter.Evaluate(rel, entry.IsDir())
@@ -241,4 +267,32 @@ func (c Combiner) writeHeader(writer *bufio.Writer, opts Options, count int) err
 func writeString(writer *bufio.Writer, value string) error {
 	_, err := writer.WriteString(value)
 	return err
+}
+
+func isLikelyBinary(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	const maxSampleSize = 8000
+	const nonPrintableThreshold = 0.30
+
+	sample := data
+	if len(sample) > maxSampleSize {
+		sample = sample[:maxSampleSize]
+	}
+
+	nonPrintable := 0
+	for _, b := range sample {
+		if b == 0x00 {
+			return true
+		}
+		if b == '\n' || b == '\r' || b == '\t' || b == '\f' || b == '\v' {
+			continue
+		}
+		if b < 0x20 || b == 0x7f {
+			nonPrintable++
+		}
+	}
+
+	return float64(nonPrintable)/float64(len(sample)) > nonPrintableThreshold
 }

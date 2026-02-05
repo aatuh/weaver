@@ -20,12 +20,17 @@ func main() {
 		outFlag            = flag.String("out", "", "Output file path ('-' for stdout, defaults to stdout)")
 		includeTree        = flag.Bool("include-tree", false, "Include JSON file tree of included files")
 		includeTreeCompact = flag.Bool("include-tree-compact", false, "Include JSON file tree as a one-line payload")
+		maxDepth           = flag.Int("max-depth", -1, "Max directory depth to include (-1 for no limit, 0 for root only)")
+		skipContents       = flag.Bool("skip-contents", false, "Skip writing file contents (header and optional tree only)")
+		skipBinary         = flag.Bool("skip-binary", false, "Replace binary file contents with a placeholder line")
 	)
 	var roots []string
 	flag.Var(rootsFlag{Roots: &roots}, "root", "Root directory to scan (repeatable, defaults to current directory)")
 	var ruleSpecs []ruleSpec
 	flag.Var(ruleFlag{Mode: filter.ModeBlacklist, Specs: &ruleSpecs}, "blacklist", "Path to gitignore-style file to blacklist (repeatable)")
 	flag.Var(ruleFlag{Mode: filter.ModeWhitelist, Specs: &ruleSpecs}, "whitelist", "Path to gitignore-style file to whitelist (repeatable)")
+	flag.Var(rulePatternFlag{Mode: filter.ModeBlacklist, Specs: &ruleSpecs}, "blacklist-pattern", "Inline gitignore-style blacklist pattern (repeatable)")
+	flag.Var(rulePatternFlag{Mode: filter.ModeWhitelist, Specs: &ruleSpecs}, "whitelist-pattern", "Inline gitignore-style whitelist pattern (repeatable)")
 
 	flag.Usage = func() {
 		usage(os.Stderr)
@@ -35,6 +40,9 @@ func main() {
 
 	if flag.NArg() > 0 {
 		exitWithError(fmt.Errorf("unexpected arguments: %s", strings.Join(flag.Args(), ", ")))
+	}
+	if *maxDepth < -1 {
+		exitWithError(fmt.Errorf("max-depth must be -1 (no limit) or a non-negative integer"))
 	}
 
 	if len(roots) == 0 {
@@ -90,6 +98,9 @@ func main() {
 		Filters:            filters,
 		IncludeTree:        *includeTree,
 		IncludeTreeCompact: *includeTreeCompact,
+		MaxDepth:           *maxDepth,
+		SkipContents:       *skipContents,
+		SkipBinary:         *skipBinary,
 		Output:             outWriter,
 		ModeLabel:          formatRuleModes(ruleSpecs),
 	}
@@ -156,8 +167,9 @@ func (n nopCloser) Close() error {
 }
 
 type ruleSpec struct {
-	Mode filter.Mode
-	Path string
+	Mode    filter.Mode
+	Path    string
+	Pattern string
 }
 
 type rootsFlag struct {
@@ -194,7 +206,7 @@ func (f ruleFlag) String() string {
 	}
 	parts := make([]string, 0, len(*f.Specs))
 	for _, spec := range *f.Specs {
-		if spec.Mode == f.Mode {
+		if spec.Mode == f.Mode && spec.Path != "" {
 			parts = append(parts, spec.Path)
 		}
 	}
@@ -210,6 +222,35 @@ func (f ruleFlag) Set(value string) error {
 		return fmt.Errorf("rule destination is not configured")
 	}
 	*f.Specs = append(*f.Specs, ruleSpec{Mode: f.Mode, Path: value})
+	return nil
+}
+
+type rulePatternFlag struct {
+	Mode  filter.Mode
+	Specs *[]ruleSpec
+}
+
+func (f rulePatternFlag) String() string {
+	if f.Specs == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(*f.Specs))
+	for _, spec := range *f.Specs {
+		if spec.Mode == f.Mode && spec.Pattern != "" {
+			parts = append(parts, spec.Pattern)
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+func (f rulePatternFlag) Set(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s pattern is required", f.Mode.String())
+	}
+	if f.Specs == nil {
+		return fmt.Errorf("rule destination is not configured")
+	}
+	*f.Specs = append(*f.Specs, ruleSpec{Mode: f.Mode, Pattern: value})
 	return nil
 }
 
@@ -232,6 +273,14 @@ func resolveRulePath(rootAbs, rulePath string) string {
 func loadRuleSets(rootAbs string, ruleSpecs []ruleSpec) ([]filter.RuleSet, error) {
 	ruleSets := make([]filter.RuleSet, 0, len(ruleSpecs))
 	for _, spec := range ruleSpecs {
+		if spec.Pattern != "" {
+			matcher, err := gitignore.Parse(strings.NewReader(spec.Pattern))
+			if err != nil {
+				return nil, fmt.Errorf("parse %s pattern %q: %w", spec.Mode.String(), spec.Pattern, err)
+			}
+			ruleSets = append(ruleSets, filter.RuleSet{Mode: spec.Mode, Matcher: matcher})
+			continue
+		}
 		rulePath := resolveRulePath(rootAbs, spec.Path)
 		matcher, err := gitignore.LoadFile(rulePath)
 		if err != nil {
@@ -327,8 +376,10 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  weaver -root . -out combined.txt")
+	fmt.Fprintln(w, "  weaver -root . -blacklist-pattern \"*.log\" -out -")
 	fmt.Fprintln(w, "  weaver -root . -include-tree -out -")
 	fmt.Fprintln(w, "  weaver -root . -include-tree-compact -out -")
+	fmt.Fprintln(w, "  weaver -root . -max-depth 2 -skip-binary -out -")
 	fmt.Fprintln(w, "  weaver -root ./api -root ./web -out -")
 	fmt.Fprintln(w, "  weaver -blacklist .gitignore -out -")
 }

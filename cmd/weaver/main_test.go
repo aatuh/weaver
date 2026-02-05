@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/aatuh/weaver/internal/filter"
 )
 
 func TestResolveRulePathPrefersCwd(t *testing.T) {
@@ -13,7 +15,7 @@ func TestResolveRulePathPrefersCwd(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	ruleAbs := filepath.Join(rootAbs, ".gitignore")
-	if err := os.WriteFile(ruleAbs, []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(ruleAbs, []byte(""), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -43,7 +45,7 @@ func TestResolveRulePathFallbacksToRoot(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	ruleAbs := filepath.Join(rootAbs, "rules.ignore")
-	if err := os.WriteFile(ruleAbs, []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(ruleAbs, []byte(""), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -63,5 +65,23 @@ func TestResolveRulePathFallbacksToRoot(t *testing.T) {
 	got := resolveRulePath(rootAbs, "rules.ignore")
 	if got != ruleAbs {
 		t.Fatalf("expected %s, got %s", ruleAbs, got)
+	}
+}
+
+func TestLoadRuleSetsInlinePattern(t *testing.T) {
+	rootAbs := t.TempDir()
+	ruleSets, err := loadRuleSets(rootAbs, []ruleSpec{
+		{Mode: filter.ModeBlacklist, Pattern: "*.log"},
+	})
+	if err != nil {
+		t.Fatalf("load rule sets: %v", err)
+	}
+
+	pathFilter := filter.NewRuleSetFilter(ruleSets, filter.ModeBlacklist)
+	if decision := pathFilter.Evaluate("debug.log", false); decision.Include {
+		t.Fatalf("expected .log to be excluded by inline pattern")
+	}
+	if decision := pathFilter.Evaluate("debug.txt", false); !decision.Include {
+		t.Fatalf("expected .txt to be included with inline pattern")
 	}
 }
